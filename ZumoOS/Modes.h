@@ -12,6 +12,7 @@
 // and is used for menu wrapping logic.
 enum Mode {
   MODE_LINE_FOLLOW,   // PD line following with recovery
+  MODE_MAZE,          // Left-hand wall following maze solver
   MODE_COUNT          // Always last — used as array size / wrap value
 };
 
@@ -20,3 +21,6 @@ void runMode(Mode m);
 
 // Main line following mode — runs its own internal loop
 void modeLineFollow();
+
+// Left-hand wall following maze solver
+void modeMazeSolve();

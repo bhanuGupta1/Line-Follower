@@ -215,3 +215,25 @@
 //  significantly — the OLED write takes ~5ms.
 // ============================================================
 #define DISPLAY_UPDATE_MS    300   // Minimum time between display refreshes (ms)
+
+
+// ============================================================
+//  MAZE SOLVER — Left-Hand Wall Following
+//
+//  MAZE_WALL_THRESH: proximity count above this = wall present
+//    Zumo proximity returns 0–6. 2 is a safe detection threshold.
+//
+//  MAZE_DRIVE_SPEED: forward speed between junctions
+//  MAZE_TURN_SPEED:  speed during 90° / 180° turns
+//  MAZE_CELL_TICKS:  encoder ticks for one cell length
+//    Tune this to match your maze cell size.
+//    At ~0.15mm/tick: 600 ticks ≈ 9cm per cell
+//
+//  MAZE_DECISION_DELAY_MS: pause after each move to let
+//    proximity sensors settle before next reading
+// ============================================================
+#define MAZE_WALL_THRESH       2     // Proximity count = wall detected
+#define MAZE_DRIVE_SPEED       150   // Forward speed through corridors
+#define MAZE_TURN_SPEED        150   // Speed during turns
+#define MAZE_CELL_TICKS        600   // Encoder ticks per maze cell (~9cm)
+#define MAZE_DECISION_DELAY_MS 100   // Settle time between decisions (ms)

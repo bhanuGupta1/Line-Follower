@@ -48,6 +48,7 @@
 void runMode(Mode m) {
   switch (m) {
     case MODE_LINE_FOLLOW: modeLineFollow(); break;
+    case MODE_MAZE:        modeMazeSolve();  break;
     default: break;
   }
 }
@@ -614,5 +615,214 @@ void modeLineFollow() {
       display.print("  ");
       display.print(rightSpeed);
     }
+  }
+}
+
+
+// ============================================================
+//  MAZE SOLVER — Left-Hand Wall Following
+// ============================================================
+//
+//  ALGORITHM: Left-Hand Rule
+//  The robot always tries to keep a wall on its LEFT side.
+//  This guarantees it will solve any simply-connected maze
+//  (one where all walls are connected to the outer boundary).
+//
+//  Decision priority each loop:
+//    1. If LEFT is open  → turn left and go (follow the wall)
+//    2. If FRONT is open → go straight (wall still on left)
+//    3. If RIGHT is open → turn right (wall blocks left+front)
+//    4. Nothing open     → turn 180° (dead end, go back)
+//
+//  Proximity sensors (front-left, front-right, left, right)
+//  detect walls. A reading above MAZE_WALL_THRESH = wall present.
+//
+//  Encoders are used for precise 90° and 180° turns so the
+//  robot stays aligned in the maze corridors.
+// ============================================================
+
+// ------------------------------------------------------------
+//  Proximity helpers — read all sensors in one call
+// ------------------------------------------------------------
+static int mazeLeft()  {
+  prox.read();
+  return prox.countsLeftWithLeftLeds();
+}
+static int mazeFrontLeft()  {
+  prox.read();
+  return prox.countsFrontWithLeftLeds();
+}
+static int mazeFrontRight() {
+  prox.read();
+  return prox.countsFrontWithRightLeds();
+}
+static int mazeRight() {
+  prox.read();
+  return prox.countsRightWithRightLeds();
+}
+
+// Returns true if a wall is detected on the left side
+static bool wallOnLeft() {
+  return mazeLeft() >= MAZE_WALL_THRESH;
+}
+
+// Returns true if a wall is detected ahead (either front sensor)
+static bool wallAhead() {
+  return mazeFrontLeft() >= MAZE_WALL_THRESH ||
+         mazeFrontRight() >= MAZE_WALL_THRESH;
+}
+
+// Returns true if a wall is detected on the right side
+static bool wallOnRight() {
+  return mazeRight() >= MAZE_WALL_THRESH;
+}
+
+// ------------------------------------------------------------
+//  Encoder-based turns — precise 90° and 180°
+//  Uses TURN_90_TICKS and TURN_180_TICKS from Config.h
+// ------------------------------------------------------------
+static void mazeTurnLeft() {
+  display.clear();
+  display.print("TURN LEFT");
+  resetEncoders();
+  while (abs(encoders.getCountsLeft()) < TURN_90_TICKS) {
+    motors.setSpeeds(-MAZE_TURN_SPEED, MAZE_TURN_SPEED);
+    if (buttonB.isPressed()) break;
+  }
+  motors.setSpeeds(0, 0);
+  delay(80);
+}
+
+static void mazeTurnRight() {
+  display.clear();
+  display.print("TURN RIGHT");
+  resetEncoders();
+  while (abs(encoders.getCountsLeft()) < TURN_90_TICKS) {
+    motors.setSpeeds(MAZE_TURN_SPEED, -MAZE_TURN_SPEED);
+    if (buttonB.isPressed()) break;
+  }
+  motors.setSpeeds(0, 0);
+  delay(80);
+}
+
+static void mazeTurn180() {
+  display.clear();
+  display.print("DEAD END");
+  display.gotoXY(0, 1);
+  display.print("Turning back");
+  resetEncoders();
+  while (abs(encoders.getCountsLeft()) < TURN_180_TICKS) {
+    motors.setSpeeds(MAZE_TURN_SPEED, -MAZE_TURN_SPEED);
+    if (buttonB.isPressed()) break;
+  }
+  motors.setSpeeds(0, 0);
+  delay(80);
+}
+
+// ------------------------------------------------------------
+//  Drive forward one cell-length (encoder-based)
+// ------------------------------------------------------------
+static void mazeDriveForward() {
+  display.clear();
+  display.print("FORWARD");
+  resetEncoders();
+  while (abs(encoders.getCountsLeft()) < MAZE_CELL_TICKS &&
+         abs(encoders.getCountsRight()) < MAZE_CELL_TICKS) {
+    // While driving forward, keep checking for wall ahead
+    if (wallAhead()) break;
+    motors.setSpeeds(MAZE_DRIVE_SPEED, MAZE_DRIVE_SPEED);
+    if (buttonB.isPressed()) break;
+  }
+  motors.setSpeeds(0, 0);
+  delay(80);
+}
+
+// ------------------------------------------------------------
+//  modeMazeSolve()
+//  Main maze solving loop using left-hand wall following.
+//
+//  Each iteration:
+//    1. Read all proximity sensors
+//    2. Apply left-hand rule to decide direction
+//    3. Execute turn or drive
+//    4. Repeat
+// ------------------------------------------------------------
+void modeMazeSolve() {
+  // Initialise proximity sensors
+  prox.initThreeSensors();
+
+  display.clear();
+  display.print("Maze Solver");
+  display.gotoXY(0, 1);
+  display.print("Left-Hand Rule");
+  display.gotoXY(0, 2);
+  display.print("Press B Start");
+
+  while (!buttonB.getSingleDebouncedPress()) delay(50);
+
+  // Countdown so user can position robot at maze entrance
+  for (int i = 3; i > 0; i--) {
+    display.clear();
+    display.print("Starting in");
+    display.gotoXY(0, 1);
+    display.print(i);
+    buzzer.play("!L8 c");
+    delay(1000);
+  }
+  buzzer.play("!L4 >c");
+  display.clear();
+  display.print("SOLVING...");
+
+  while (true) {
+
+    // Emergency stop — press B to pause, press again to resume
+    if (buttonB.isPressed()) {
+      motors.setSpeeds(0, 0);
+      display.clear();
+      display.print("PAUSED");
+      display.gotoXY(0, 1);
+      display.print("B = Resume");
+      while (buttonB.isPressed()) delay(10);
+      while (!buttonB.getSingleDebouncedPress()) delay(50);
+      display.clear();
+      display.print("SOLVING...");
+      continue;
+    }
+
+    bool left  = wallOnLeft();
+    bool front = wallAhead();
+    bool right = wallOnRight();
+
+    // ── Left-hand rule decision ──────────────────────────────
+    //
+    //  Priority 1: Left is open → turn left to follow the wall
+    //  The robot always tries to hug the left wall.
+    //  Turning left when possible keeps the left wall in contact.
+    //
+    if (!left) {
+      mazeTurnLeft();
+      mazeDriveForward();
+    }
+    //  Priority 2: Left blocked, front open → go straight
+    //  Wall is on the left (good), corridor ahead is clear.
+    //
+    else if (!front) {
+      mazeDriveForward();
+    }
+    //  Priority 3: Left and front blocked, right open → turn right
+    //  The robot is forced to turn right — left wall still tracked.
+    //
+    else if (!right) {
+      mazeTurnRight();
+    }
+    //  Priority 4: All directions blocked → dead end, turn 180°
+    //  Back out and try the other way.
+    //
+    else {
+      mazeTurn180();
+    }
+
+    // Brief pause between decisions to let sensors settle
+    delay(MAZE_DECISION_DELAY_MS);
   }
 }
