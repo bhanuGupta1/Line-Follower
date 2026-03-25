@@ -41,9 +41,9 @@ void calibrateLineSensors() {
 
   // Spin right while collecting calibration samples
   motors.setSpeeds(150, -150);
-  for (int i = 0; i < CALIBRATION_SPINS; i++) {
+  for (int i = 0; i < 100; i++) {
     lineSensors.calibrate();
-    delay(CALIBRATION_DELAY_MS);
+    delay(15);
   }
   motors.setSpeeds(0, 0);
 
