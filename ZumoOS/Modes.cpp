@@ -47,8 +47,8 @@
 // ------------------------------------------------------------
 void runMode(Mode m) {
   switch (m) {
-    case MODE_LINE_FOLLOW: modeLineFollow(); break;
-    case MODE_MAZE:        modeMazeSolve();  break;
+    case MODE_LINE_FOLLOW: modeLineFollow();     break;
+    case MODE_OBSTACLE:    modeObstacleAvoid();  break;
     default: break;
   }
 }

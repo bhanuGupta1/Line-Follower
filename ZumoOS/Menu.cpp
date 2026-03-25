@@ -13,8 +13,8 @@
 // Array of human-readable mode names, indexed by the Mode enum.
 // Must stay in sync with the Mode enum in Modes.h.
 static const char* modeNames[] = {
-  "Line Follow",  // MODE_LINE_FOLLOW
-  "Maze Solve"    // MODE_MAZE
+  "Line Follow",    // MODE_LINE_FOLLOW
+  "Obstacle Avoid"  // MODE_OBSTACLE
 };
 
 // ------------------------------------------------------------
